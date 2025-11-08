@@ -12,13 +12,12 @@ Get recommendations based on:
 - **Category**
 - **Author**
 - **Topics (Keywords)**
-- **Rating**
 - **Target Audience**
 - **Book Type**
 - **Language**
 
 ### Chatbot-Like Interface
-A user-friendly chatbot guides you step-by-step to provide your preferences.
+A user-friendly chatbot guides you step-by-step to provide your preferences.it makes using streamlit.
 
 ### Inference Engine
 Uses the **experta** library to create and apply rules for generating tailored recommendations.
@@ -42,7 +41,6 @@ Based on your responses:
 
 - Categories and authors are matched directly.
 - Keywords are analyzed for relevance.
-- Ratings are filtered with a tolerance of ±0.5.
 
 ### Inference Engine
 - The **experta** library manages the rules and facts to process user inputs and recommend books.
@@ -58,14 +56,6 @@ The system provides:
 - Books matching your exact preferences (if available)
 - Alternatives with relevance scores
 - Additional recommendations considering unspecified preferences
-
----
-
-## Streamlit User Interface
-
-- **Interactive Chat:** Displays a chatbot interface for seamless conversation.
-- **Real-Time Feedback:** Shows messages and recommendations dynamically.
-- **Input Validation:** Ensures user inputs are properly formatted (e.g., ratings are numeric).
 
 ---
 
