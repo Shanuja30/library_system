@@ -1,67 +1,74 @@
-# Library Expert System
+# 📚 Expert Librarian System
 
-An expert system for book recommendations using forward and backward chaining.
+Welcome to the **Expert Librarian System**! This platform helps you find the best books tailored to your preferences using an inference engine powered by the **experta** Python library.
 
-## Setup
-
-1. **Activate the virtual environment:**
-   ```bash
-   source venv/bin/activate
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Running the Application
-
-### Option 1: Streamlit Web Interface (Recommended)
-
-Run the interactive web interface:
-```bash
-streamlit run st.py
-```
-
-This will open a web browser with the interactive interface where you can:
-- Answer questions about your book preferences
-- Get personalized book recommendations
-- See confidence scores for recommendations
-
-### Option 2: Command Line Interface
-
-Run the command-line version:
-```bash
-python main.py
-```
-
-This will run with the default test parameters defined in `main.py`.
-
-To customize the search, edit the `user_params` in `main.py` (around line 192):
-
-```python
-user_params = BookFact(
-    category="Technology",
-    author="Andrew Ng",
-    keywords={"AI", "machine learning"},
-    target_audience="Adults",
-    language="English",
-    book_type="Paperback"
-)
-```
-
-## Project Structure
-
-- `st.py` - Streamlit web interface
-- `main.py` - Command-line interface and expert system engine
-- `facts.py` - Knowledge base with book facts
-- `controller.py` - Utility functions for data conversion
+---
 
 ## Features
 
-- Forward chaining for book recommendations
-- Backward chaining to find book categories by title
-- Keyword matching
-- Relevance scoring
-- Multiple recommendation strategies
+### Personalized Book Recommendations
+Get recommendations based on:
 
+- **Category**
+- **Author**
+- **Topics (Keywords)**
+- **Rating**
+- **Target Audience**
+- **Book Type**
+- **Language**
+
+### Chatbot-Like Interface
+A user-friendly chatbot guides you step-by-step to provide your preferences.
+
+### Inference Engine
+Uses the **experta** library to create and apply rules for generating tailored recommendations.
+
+---
+
+## How It Works
+
+### Step-by-Step Questions
+The system asks the following questions to understand your requirements:
+
+1. What type of category do you want?
+2. Who is the author you prefer?
+3. Tell me the topics related to the category you would like to refer to. It will help find the most suitable books.
+4. How about the target audience, like teens or adults?
+5. Which type of book do you hope for, like a novel or hardcover?
+6. Which language do you prefer for the book?
+
+### User Inputs
+Based on your responses:
+
+- Categories and authors are matched directly.
+- Keywords are analyzed for relevance.
+- Ratings are filtered with a tolerance of ±0.5.
+
+### Inference Engine
+- The **experta** library manages the rules and facts to process user inputs and recommend books.
+- Rules are designed to handle:
+  - Exact matches
+  - Partial matches (with relevance scores)
+  - Suggestions for similar authors and topics
+- Uses **forward chaining** to infer results based on facts provided by the user.
+
+### Response Generation
+The system provides:
+
+- Books matching your exact preferences (if available)
+- Alternatives with relevance scores
+- Additional recommendations considering unspecified preferences
+
+---
+
+## Streamlit User Interface
+
+- **Interactive Chat:** Displays a chatbot interface for seamless conversation.
+- **Real-Time Feedback:** Shows messages and recommendations dynamically.
+- **Input Validation:** Ensures user inputs are properly formatted (e.g., ratings are numeric).
+
+---
+
+## Inference Engine Rules
+
+- The rules are created using the **experta** library to handle exact matches, partial matches, and suggestions.
