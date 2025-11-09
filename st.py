@@ -1,5 +1,5 @@
 import streamlit as st
-from controller import converFact_to_string, response, get_book
+from controller import converFact_to_string, response, get_book, generate_recommendation_explanation
 from facts import knowledge_base, BookFact
 from main import LibraryExpertSystem
 
@@ -28,8 +28,8 @@ def reset_application():
     })
     st.rerun()
 
-def display_book_details(book: dict, index: int):
-    """Display book details in a formatted way"""
+def display_book_details(book: dict, index: int, explanation: str = ""):
+    """Display book details in a formatted way with explanation"""
     # Create columns for better layout
     col1, col2 = st.columns([3, 1])
     
@@ -37,6 +37,10 @@ def display_book_details(book: dict, index: int):
         st.write(f"**Title**: {book.get('title', 'Unknown Title')}")
         st.write(f"**Author**: {book.get('author', 'Unknown Author')}")
         st.write(f"**Category**: {book.get('category', 'Unknown Category')}")
+        
+        # Show explanation if provided
+        if explanation:
+            st.info(f"💡 **Why this book?** {explanation}")
         
         # Show rating if available
         rating = book.get('rating')
@@ -50,7 +54,6 @@ def display_book_details(book: dict, index: int):
             st.write(f"**Book Type**: {book.get('book_type', 'N/A')}")
             keywords = book.get('keywords', [])
             if keywords:
-                # Handle both list and set types
                 if isinstance(keywords, (list, set)):
                     keywords_str = ', '.join(str(k) for k in keywords)
                 else:
@@ -58,7 +61,6 @@ def display_book_details(book: dict, index: int):
                 st.write(f"**Keywords**: {keywords_str}")
     
     with col2:
-        # You can add book cover placeholder or other visual elements here
         st.markdown("📖")
 
 # Chatbot interface
@@ -250,11 +252,10 @@ if st.session_state.step == len(questions):
                         "response_data": general_recs
                     })
         
-        # Display recommendations
+                # Display recommendations
         st.write("### 📚 Recommendations:")
         
-        if response and response.get("response_messege"):
-            st.info(response["response_messege"])
+      
         
         if response and response.get("response_data"):
             response_data = response["response_data"]
@@ -266,7 +267,8 @@ if st.session_state.step == len(questions):
                 
                 if isinstance(item, dict):
                     # Direct dictionary format (exact matches)
-                    display_book_details(item, i)
+                    explanation = generate_recommendation_explanation(item, st.session_state.user_params)
+                    display_book_details(item, i, explanation)
                 
                 elif isinstance(item, tuple) and len(item) == 2:
                     # Alternative format with score
@@ -274,10 +276,16 @@ if st.session_state.step == len(questions):
                     st.write(f"**Confidence Level**: {score}%")
                     
                     if isinstance(book_ref, dict):
-                        display_book_details(book_ref, i)
+                        explanation = generate_recommendation_explanation(book_ref, st.session_state.user_params)
+                        display_book_details(book_ref, i, explanation)
                     else:
-                        # Use the get_book function for other formats
-                        st.write(get_book(book_ref))
+                        # For other formats, try to convert and generate explanation
+                        try:
+                            book_dict = converFact_to_string(book_ref)
+                            explanation = generate_recommendation_explanation(book_dict, st.session_state.user_params)
+                            display_book_details(book_dict, i, explanation)
+                        except:
+                            st.write(get_book(book_ref))
                 
                 else:
                     # Fallback for any other format
@@ -297,26 +305,3 @@ if st.session_state.step == len(questions):
         reset_application()
 
 
-# Add some helpful information in sidebar
-with st.sidebar:
-    st.header("ℹ️ About")
-    st.markdown("""
-    This Expert Librarian System uses AI to find books matching your preferences.
-    
-    **How it works:**
-    1. Answer questions about your preferences
-    2. Our system searches for matches
-    3. Get personalized recommendations
-    
-    **Available categories include:**
-    - Fiction, Technology, Science
-    - Business, Self-help, Biography  
-    - Fantasy, Mystery, and more!
-    """)
-    
-    st.header("📊 Statistics")
-    st.metric("Books in Database", len(knowledge_base))
-    
-    # Show some quick stats
-    categories = len(set(book.category for book in knowledge_base))
-    st.metric("Available Categories", categories)
