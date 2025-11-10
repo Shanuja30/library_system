@@ -167,8 +167,10 @@ if st.session_state.step == len(questions):
         # Fallback: If no recommendations were found, provide some anyway
         response_data = response.get("response_data", [])
         if not response_data or len(response_data) == 0:
-            # Manually search for recommendations
-            from controller import converFact_to_string
+            # Manually search for recommendations (hybrid: rules + ML similarity)
+            from controller import converFact_to_string, ensure_ml_index, ml_similarity_for_book
+            # Build IDF index for ML similarity once
+            ensure_ml_index(knowledge_base)
             recommendations = []
             user_cat = st.session_state.user_params.get("category", "").strip().lower() if st.session_state.user_params.get("category") else ""
             user_author = st.session_state.user_params.get("author", "").strip().lower() if st.session_state.user_params.get("author") else ""
@@ -266,10 +268,13 @@ if st.session_state.step == len(questions):
                 
                 if score > 0:
                     # Normalize to percentage based on total_possible points for the provided criteria
-                    percentage = math.floor((score / total_possible) * 100) if total_possible > 0 else 0
-                    # Cap percentage to 100
-                    percentage = min(percentage, 100)
-                    recommendations.append((converFact_to_string(book), percentage))
+                    rule_pct = math.floor((score / total_possible) * 100) if total_possible > 0 else 0
+                    rule_pct = min(rule_pct, 100)
+                    # ML similarity in [0,1]
+                    ml_sim = ml_similarity_for_book(converFact_to_string(book), st.session_state.user_params)
+                    # Blend scores: 60% rules, 40% ML
+                    final_pct = math.floor(0.6 * rule_pct + 0.4 * (ml_sim * 100.0))
+                    recommendations.append((converFact_to_string(book), final_pct))
             
             recommendations.sort(key=lambda x: x[1], reverse=True)
             if recommendations:

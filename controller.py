@@ -65,6 +65,145 @@ response = {
     "response_data": []
 }
 
+# ------------------------------
+# Lightweight ML-style similarity
+# ------------------------------
+import math
+import re
+from collections import Counter, defaultdict
+
+_ML_INDEX_BUILT = False
+_IDF: dict = {}
+_VOCAB: set = set()
+
+def _tokenize(text: str) -> list:
+    if not text:
+        return []
+    return re.findall(r"[a-z0-9]+", str(text).lower())
+
+def _book_to_text(book: dict) -> str:
+    # Concatenate book metadata fields for similarity
+    fields = [
+        book.get("title", ""),
+        book.get("author", ""),
+        book.get("category", ""),
+        " ".join(book.get("keywords", [])) if isinstance(book.get("keywords", []), (list, set)) else str(book.get("keywords", "")),
+        book.get("target_audience", ""),
+        book.get("language", ""),
+        book.get("book_type", ""),
+    ]
+    return " ".join([str(f) for f in fields if f])
+
+def ensure_ml_index(knowledge_base) -> None:
+    """Build a simple IDF index over the corpus (only once per process)."""
+    global _ML_INDEX_BUILT, _IDF, _VOCAB
+    if _ML_INDEX_BUILT:
+        return
+    docs = []
+    for fact in knowledge_base:
+        book = converFact_to_string(fact)
+        text = _book_to_text(book)
+        tokens = set(_tokenize(text))
+        docs.append(tokens)
+        _VOCAB.update(tokens)
+    # Compute IDF
+    N = max(1, len(docs))
+    df = defaultdict(int)
+    for tokens in docs:
+        for t in tokens:
+            df[t] += 1
+    _IDF = {t: math.log((N + 1) / (df_t + 1)) + 1.0 for t, df_t in df.items()}
+    _ML_INDEX_BUILT = True
+
+def _tfidf_vector(tokens: list) -> dict:
+    counts = Counter(tokens)
+    vec = {}
+    for t, c in counts.items():
+        if t in _IDF:
+            vec[t] = (1.0 + math.log(c)) * _IDF[t]
+    return vec
+
+def _cosine_sim(vec_a: dict, vec_b: dict) -> float:
+    if not vec_a or not vec_b:
+        return 0.0
+    # dot
+    dot = 0.0
+    for t, wa in vec_a.items():
+        wb = vec_b.get(t)
+        if wb:
+            dot += wa * wb
+    # norms
+    na = math.sqrt(sum(w * w for w in vec_a.values()))
+    nb = math.sqrt(sum(w * w for w in vec_b.values()))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+def ml_similarity_for_book(book: dict, user_params: dict) -> float:
+    """
+    Compute cosine similarity between user preferences text and book metadata text.
+    Returns a float in [0,1].
+    """
+    # Build user text
+    user_text_parts = [
+        user_params.get("category") or "",
+        user_params.get("author") or "",
+        " ".join(user_params.get("keywords", [])) if isinstance(user_params.get("keywords", []), (list, set)) else str(user_params.get("keywords", "")),
+        user_params.get("target_audience") or "",
+        user_params.get("language") or "",
+        user_params.get("book_type") or "",
+    ]
+    user_text = " ".join([str(p) for p in user_text_parts if p])
+    user_tokens = _tokenize(user_text)
+    book_tokens = _tokenize(_book_to_text(book))
+    user_vec = _tfidf_vector(user_tokens)
+    book_vec = _tfidf_vector(book_tokens)
+    return _cosine_sim(user_vec, book_vec)
+
+# ------------------------------
+# Explanations
+# ------------------------------
+def generate_recommendation_explanation(book: dict, user_params: dict) -> str:
+    """
+    Create a short human-readable explanation based on matched fields and rating proximity.
+    """
+    reasons = []
+    # Field matches
+    if user_params.get("category") and str(book.get("category", "")).lower() == str(user_params.get("category", "")).lower():
+        reasons.append("matches your category")
+    if user_params.get("author") and str(book.get("author", "")).lower() == str(user_params.get("author", "")).lower():
+        reasons.append("same author")
+    if user_params.get("language") and str(book.get("language", "")).lower() == str(user_params.get("language", "")).lower():
+        reasons.append("preferred language")
+    if user_params.get("book_type") and str(book.get("book_type", "")).lower() == str(user_params.get("book_type", "")).lower():
+        reasons.append("requested book type")
+    if user_params.get("target_audience") and str(book.get("target_audience", "")).lower() == str(user_params.get("target_audience", "")).lower():
+        reasons.append("target audience match")
+    # Keywords overlap
+    try:
+        user_kw = set([str(k).lower() for k in (user_params.get("keywords") or [])])
+        book_kw = set([str(k).lower() for k in (book.get("keywords") or [])])
+        if user_kw and book_kw:
+            overlap = user_kw.intersection(book_kw)
+            if overlap:
+                reasons.append(f"keyword overlap: {', '.join(sorted(overlap))}")
+    except Exception:
+        pass
+    # Rating proximity
+    try:
+        desired = float(user_params.get("rating")) if user_params.get("rating") is not None else None
+        br = float(book.get("rating")) if book.get("rating") is not None else None
+        if desired is not None and br is not None:
+            diff = abs(desired - br)
+            if diff <= 0.3:
+                reasons.append("rating very close to your preference")
+            elif diff <= 0.5:
+                reasons.append("rating close to your preference")
+    except Exception:
+        pass
+    if not reasons:
+        return "overall content similarity to your preferences"
+    return ", ".join(reasons)
 
 def get_book(book: dict):
     try:
