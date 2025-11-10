@@ -1,4 +1,5 @@
 import streamlit as st
+import math
 from controller import converFact_to_string, response, get_book, generate_recommendation_explanation
 from facts import knowledge_base, BookFact
 from main import LibraryExpertSystem
@@ -73,6 +74,7 @@ questions = [
     "How about the target audience, like teens or adults?",
     "Which type of book do you hope for, like a novel or hardcover?",
     "Which language do you prefer for the book?",
+    "How much book rating do you hope to find (e.g., 4.1 or 4.5)?",
 ]
 
 # Initialize session state
@@ -108,6 +110,20 @@ if st.session_state.step < len(questions):
             # Normalize keywords and text inputs
             if key == "keywords":
                 st.session_state.user_params[key] = set([k.strip().lower() for k in user_input.split(",")]) if user_input else set()
+            elif key == "rating":
+                # Parse rating as float with validation
+                try:
+                    rating_val = float(user_input.strip()) if user_input else None
+                    if rating_val is None:
+                        st.warning("Please enter a rating value like 4.1 or 4.5.")
+                        st.stop()
+                    if rating_val < 0 or rating_val > 5:
+                        st.warning("Please enter a rating between 0 and 5.")
+                        st.stop()
+                    st.session_state.user_params[key] = rating_val
+                except ValueError:
+                    st.warning("Invalid rating. Please enter a number like 4.1 or 4.5.")
+                    st.stop()
             else:
                 st.session_state.user_params[key] = user_input.strip() if user_input else None
 
@@ -129,6 +145,7 @@ if st.session_state.step == len(questions):
         target_audience=st.session_state.user_params.get("target_audience"),
         language=st.session_state.user_params.get("language"),
         book_type=st.session_state.user_params.get("book_type"),
+        rating=st.session_state.user_params.get("rating"),
         
     )
 
@@ -159,6 +176,7 @@ if st.session_state.step == len(questions):
             user_target = st.session_state.user_params.get("target_audience", "").strip().lower() if st.session_state.user_params.get("target_audience") else ""
             user_lang = st.session_state.user_params.get("language", "").strip().lower() if st.session_state.user_params.get("language") else ""
             user_type = st.session_state.user_params.get("book_type", "").strip().lower() if st.session_state.user_params.get("book_type") else ""
+            user_rating = st.session_state.user_params.get("rating", None)
             
             for book in knowledge_base:
                 # Use as_dict() to get actual values from BookFact objects
@@ -174,14 +192,33 @@ if st.session_state.step == len(questions):
                 book_target = str(book_dict.get('target_audience', '')).strip().lower() if book_dict.get('target_audience') else ''
                 book_lang = str(book_dict.get('language', '')).strip().lower() if book_dict.get('language') else ''
                 book_type = str(book_dict.get('book_type', '')).strip().lower() if book_dict.get('book_type') else ''
+                book_rating = None
+                try:
+                    book_rating = float(book_dict.get('rating')) if book_dict.get('rating') is not None else None
+                except Exception:
+                    book_rating = None
                 
                 score = 0
+                total_possible = 0
                 # Category match
                 if user_cat and book_cat == user_cat:
                     score += 10
+                if user_cat:
+                    total_possible += 10
                 # Author match
                 if user_author and book_author == user_author:
                     score += 10
+                if user_author:
+                    total_possible += 10
+                # Rating match (with tolerance)
+                if user_rating is not None and book_rating is not None:
+                    # Award points if within ±0.3, smaller points if within ±0.5
+                    if abs(book_rating - user_rating) <= 0.3:
+                        score += 6
+                    elif abs(book_rating - user_rating) <= 0.5:
+                        score += 3
+                if user_rating is not None:
+                    total_possible += 6
                 # Keywords match (case-insensitive)
                 if user_keywords and book_keywords:
                     try:
@@ -205,18 +242,34 @@ if st.session_state.step == len(questions):
                             score += keyword_matches * 5
                     except Exception:
                         pass  # Skip keyword matching if there's an error
+                if user_keywords:
+                    # Maximum possible keyword score is 5 points per provided keyword
+                    try:
+                        total_possible += 5 * (len(user_keywords) if not isinstance(user_keywords, set) else len([k for k in user_keywords if k]))
+                    except Exception:
+                        total_possible += 0
                 # Target audience match
                 if user_target and book_target == user_target:
                     score += 5
+                if user_target:
+                    total_possible += 5
                 # Language match
                 if user_lang and book_lang == user_lang:
                     score += 3
+                if user_lang:
+                    total_possible += 3
                 # Book type match
                 if user_type and book_type == user_type:
                     score += 2
+                if user_type:
+                    total_possible += 2
                 
                 if score > 0:
-                    recommendations.append((converFact_to_string(book), score))
+                    # Normalize to percentage based on total_possible points for the provided criteria
+                    percentage = math.floor((score / total_possible) * 100) if total_possible > 0 else 0
+                    # Cap percentage to 100
+                    percentage = min(percentage, 100)
+                    recommendations.append((converFact_to_string(book), percentage))
             
             recommendations.sort(key=lambda x: x[1], reverse=True)
             if recommendations:
